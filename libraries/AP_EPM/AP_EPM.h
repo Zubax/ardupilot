@@ -57,17 +57,25 @@ private:
 
     bool should_use_uavcan() const { return _uavcan_fd >= 0; }
 
+    // Refer to http://uavcan.org/Specification/7._List_of_standard_data_types/#uavcanequipmenthardpoint
+    struct UAVCANCommand {
+        uint8_t hardpoint_id = 0;
+        uint16_t command = 0;
+    };
+
+    UAVCANCommand make_uavcan_command(uint16_t command) const
+    {
+        UAVCANCommand cmd;
+        cmd.hardpoint_id = _uavcan_hardpoint_id;
+        cmd.command = command;
+        return cmd;
+    }
+
     // EPM flags
     struct EPM_Flags {
         uint8_t grab    : 1;    // true if we think we have grabbed onto cargo, false if we think we've released it
         uint8_t active  : 1;    // true if we are actively sending grab or release PWM to EPM to activate grabbing or releasing, false if we are sending neutral pwm
     } _flags;
-
-    // Refer to http://uavcan.org/Specification/7._List_of_standard_data_types/#uavcanequipmenthardpoint
-    struct UAVCANHardpointCommand {
-        uint8_t hardpoint_id = 0;
-        uint16_t command = 0;
-    };
 
     // UAVCAN driver fd
     int _uavcan_fd = -1;
@@ -78,7 +86,7 @@ private:
     AP_Int16    _release_pwm;           // PWM value sent to EPM to release the cargo
     AP_Int16    _neutral_pwm;           // PWM value sent to EPM when not grabbing or releasing
     AP_Int8     _regrab_interval;       // Time in seconds that gripper will regrab the cargo to ensure grip has not weakend
-    AP_UInt8    _uavcan_hardpoint_id;
+    AP_Int16    _uavcan_hardpoint_id;
 
     // internal variables
     uint32_t    _last_grab_or_release;

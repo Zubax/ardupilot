@@ -11,6 +11,8 @@
 #include "AP_EPM.h"
 #include <AP_HAL/AP_HAL.h>
 #include <AP_BoardConfig/AP_BoardConfig.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -100,7 +102,7 @@ void AP_EPM::grab()
     _last_grab_or_release = AP_HAL::millis();
 
     if (should_use_uavcan()) {
-        UAVCANHardpointCommand cmd { _uavcan_hardpoint_id, 1 };
+        const UAVCANCommand cmd = make_uavcan_command(1);
         (void)ioctl(_uavcan_fd, UAVCAN_IOCS_HARDPOINT_SET, reinterpret_cast<unsigned long>(&cmd));
     } else {
         // move the servo to the release position
@@ -124,7 +126,7 @@ void AP_EPM::release()
     _last_grab_or_release = AP_HAL::millis();
 
     if (should_use_uavcan()) {
-        UAVCANHardpointCommand cmd { _uavcan_hardpoint_id, 0 };
+        const UAVCANCommand cmd = make_uavcan_command(0);
         (void)ioctl(_uavcan_fd, UAVCAN_IOCS_HARDPOINT_SET, reinterpret_cast<unsigned long>(&cmd));
     } else {
         // move the servo to the release position
