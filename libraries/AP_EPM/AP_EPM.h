@@ -5,8 +5,10 @@
  *
  *  Created on: DEC 06, 2013
  *      Author: Andreas Jochum
+ *              Pavel Kirienko <pavel.kirienko@zubax.com> - UAVCAN support
  *
  *      Set-up Wiki: http://copter.ardupilot.org/wiki/common-electro-permanent-magnet-gripper/
+ *      EPM docs:    https://docs.zubax.com/opengrab_epm_v3
  */
 
 /// @file	AP_EPM.h
@@ -25,7 +27,7 @@
 #define EPM_REGRAB_DEFAULT          0           // default re-grab interval (in seconds) to ensure cargo is securely held
 
 /// @class	AP_EPM
-/// @brief	Class to manage the EPM_CargoGripper 
+/// @brief	Class to manage the EPM_CargoGripper
 class AP_EPM {
 public:
     AP_EPM();
@@ -53,11 +55,22 @@ private:
     // neutral - return the EPM pwm output to the neutral position
     void        neutral();
 
+    bool should_use_uavcan() const { return _uavcan_fd >= 0; }
+
     // EPM flags
     struct EPM_Flags {
         uint8_t grab    : 1;    // true if we think we have grabbed onto cargo, false if we think we've released it
         uint8_t active  : 1;    // true if we are actively sending grab or release PWM to EPM to activate grabbing or releasing, false if we are sending neutral pwm
     } _flags;
+
+    // Refer to http://uavcan.org/Specification/7._List_of_standard_data_types/#uavcanequipmenthardpoint
+    struct UAVCANHardpointCommand {
+        uint8_t hardpoint_id = 0;
+        uint16_t command = 0;
+    };
+
+    // UAVCAN driver fd
+    int _uavcan_fd = -1;
 
     // parameters
     AP_Int8     _enabled;               // EPM enable/disable
@@ -65,6 +78,7 @@ private:
     AP_Int16    _release_pwm;           // PWM value sent to EPM to release the cargo
     AP_Int16    _neutral_pwm;           // PWM value sent to EPM when not grabbing or releasing
     AP_Int8     _regrab_interval;       // Time in seconds that gripper will regrab the cargo to ensure grip has not weakend
+    AP_UInt8    _uavcan_hardpoint_id;
 
     // internal variables
     uint32_t    _last_grab_or_release;

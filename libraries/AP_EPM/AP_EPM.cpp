@@ -5,10 +5,12 @@
  *
  *  Created on: DEC 6, 2013
  *      Author: Andreas Jochum
+ *              Pavel Kirienko <pavel.kirienko@zubax.com> - UAVCAN support
  */
 
 #include "AP_EPM.h"
 #include <AP_HAL/AP_HAL.h>
+#include <AP_BoardConfig/AP_BoardConfig.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -48,6 +50,13 @@ const AP_Param::GroupInfo AP_EPM::var_info[] = {
     // @Values: 0:Never, 15:every 15 seconds, 30:every 30 seconds, 60:once per minute
     AP_GROUPINFO("REGRAB",  4, AP_EPM, _regrab_interval, EPM_REGRAB_DEFAULT),
 
+    // @Param: REGRAB
+    // @DisplayName: EPM UAVCAN Hardpoint ID
+    // @Description: Refer to https://docs.zubax.com/opengrab_epm_v3#UAVCAN_interface
+    // @User: Standard
+    // @Range: 0 to 255
+    AP_GROUPINFO("UAVCAN_ID", 5, AP_EPM, _uavcan_hardpoint_id, 0),
+
     AP_GROUPEND
 };
 
@@ -59,15 +68,17 @@ AP_EPM::AP_EPM(void) :
     // initialise flags
     _flags.grab = false;
     _flags.active = false;
-
 }
 
-void AP_EPM::init() 
+void AP_EPM::init()
 {
     // return immediately if not enabled
     if (!_enabled) {
         return;
     }
+
+    _uavcan_fd = open(UAVCAN_NODE_FILE, 0);
+    hal.console->printf("EPM: UAVCAN fd %d\n", _uavcan_fd);
 
     // initialise the EPM to the neutral position
     neutral();
@@ -88,8 +99,13 @@ void AP_EPM::grab()
     // capture time
     _last_grab_or_release = AP_HAL::millis();
 
-    // move the servo to the release position
-    RC_Channel_aux::set_radio(RC_Channel_aux::k_epm, _grab_pwm);
+    if (should_use_uavcan()) {
+        UAVCANHardpointCommand cmd { _uavcan_hardpoint_id, 1 };
+        (void)ioctl(_uavcan_fd, UAVCAN_IOCS_HARDPOINT_SET, reinterpret_cast<unsigned long>(&cmd));
+    } else {
+        // move the servo to the release position
+        RC_Channel_aux::set_radio(RC_Channel_aux::k_epm, _grab_pwm);
+    }
 }
 
 // release - move the epm pwm output to the release position
@@ -107,12 +123,17 @@ void AP_EPM::release()
     // capture time
     _last_grab_or_release = AP_HAL::millis();
 
-    // move the servo to the release position
-    RC_Channel_aux::set_radio(RC_Channel_aux::k_epm, _release_pwm);
+    if (should_use_uavcan()) {
+        UAVCANHardpointCommand cmd { _uavcan_hardpoint_id, 0 };
+        (void)ioctl(_uavcan_fd, UAVCAN_IOCS_HARDPOINT_SET, reinterpret_cast<unsigned long>(&cmd));
+    } else {
+        // move the servo to the release position
+        RC_Channel_aux::set_radio(RC_Channel_aux::k_epm, _release_pwm);
+    }
 }
 
 // neutral - return the epm pwm output to the neutral position
-void AP_EPM::neutral() 
+void AP_EPM::neutral()
 {
     // return immediately if not enabled
     if (!_enabled) {
@@ -122,8 +143,10 @@ void AP_EPM::neutral()
     // flag we are inactive (i.e. not grabbing or releasing cargo)
     _flags.active = false;
 
-    // move the servo to the off position
-    RC_Channel_aux::set_radio(RC_Channel_aux::k_epm, _neutral_pwm);
+    if (!should_use_uavcan()) {
+        // move the servo to the off position
+        RC_Channel_aux::set_radio(RC_Channel_aux::k_epm, _neutral_pwm);
+    }
 }
 
 // update - moves the pwm back to neutral after the timeout has passed
@@ -136,7 +159,8 @@ void AP_EPM::update()
     }
 
     // re-grab the cargo intermittently
-    if (_flags.grab && (_regrab_interval > 0) && (AP_HAL::millis() - _last_grab_or_release > ((uint32_t)_regrab_interval * 1000))) {
+    if (_flags.grab && (_regrab_interval > 0) &&
+        (AP_HAL::millis() - _last_grab_or_release > ((uint32_t)_regrab_interval * 1000))) {
         grab();
     }
 }
