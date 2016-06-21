@@ -13,6 +13,8 @@
 #include <AP_BoardConfig/AP_BoardConfig.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <cstdio>
+
 
 extern const AP_HAL::HAL& hal;
 
@@ -80,7 +82,8 @@ void AP_EPM::init()
     }
 
     _uavcan_fd = open(UAVCAN_NODE_FILE, 0);
-    hal.console->printf("EPM: UAVCAN fd %d\n", _uavcan_fd);
+    // http://ardupilot.org/dev/docs/learning-ardupilot-uarts-and-the-console.html
+    ::printf("EPM: UAVCAN fd %d\n", _uavcan_fd);
 
     // initialise the EPM to the neutral position
     neutral();
@@ -102,6 +105,7 @@ void AP_EPM::grab()
     _last_grab_or_release = AP_HAL::millis();
 
     if (should_use_uavcan()) {
+        ::printf("EPM: UAVCAN GRAB\n");
         const UAVCANCommand cmd = make_uavcan_command(1);
         (void)ioctl(_uavcan_fd, UAVCAN_IOCS_HARDPOINT_SET, reinterpret_cast<unsigned long>(&cmd));
     } else {
@@ -126,6 +130,7 @@ void AP_EPM::release()
     _last_grab_or_release = AP_HAL::millis();
 
     if (should_use_uavcan()) {
+        ::printf("EPM: UAVCAN RELEASE\n");
         const UAVCANCommand cmd = make_uavcan_command(0);
         (void)ioctl(_uavcan_fd, UAVCAN_IOCS_HARDPOINT_SET, reinterpret_cast<unsigned long>(&cmd));
     } else {
